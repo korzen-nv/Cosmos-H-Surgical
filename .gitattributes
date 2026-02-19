@@ -1,0 +1,14 @@
+*.mp4 !text !filter !merge !diff
+*.avi !text !filter !merge !diff
+*.mov !text !filter !merge !diff
+*.mkv !text !filter !merge !diff
+*.webm !text !filter !merge !diff
+*.wav !text !filter !merge !diff
+*.mp3 !text !filter !merge !diff
+*.flac !text !filter !merge !diff
+*.aac !text !filter !merge !diff
+*.jpg !text !filter !merge !diff
+*.jpeg !text !filter !merge !diff
+*.png !text !filter !merge !diff
+*.tiff !text !filter !merge !diff
+*.bmp !text !filter !merge !diff
