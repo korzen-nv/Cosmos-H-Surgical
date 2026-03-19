@@ -131,6 +131,20 @@ sbatch run_inference_mars.slurm [INPUT_FILE] [OUTPUT_DIR] [CONTROL] [NUM_GPUS]
 
 **First run** downloads ~20GB of checkpoints (edge/depth/seg/vis + tokenizer + text encoder) to HF cache on Lustre.
 
+### GPU parallelism strategy
+Always run **independent single-GPU processes** (one video per GPU), not `torchrun` context parallelism across GPUs. The pipeline uses context parallelism (CP) by default — all GPUs shard the same video temporally — but CP scales sublinearly. Single-GPU peak VRAM is ~53 GB, which fits in A100-80GB with headroom.
+
+```bash
+# 8 videos on 8 GPUs — launch 8 independent processes
+for gpu in 0 1 2 3 4 5 6 7; do
+  CUDA_VISIBLE_DEVICES=$gpu python examples/inference.py \
+    -i "input_${gpu}.json" -o "outputs/video_${gpu}" depth &
+done
+wait
+```
+
+This is ~2× faster than `torchrun --nproc_per_node=8` running videos sequentially. Split input specs into per-GPU files (one JSON/JSONL each). No `torchrun` needed — plain `python` with `CUDA_VISIBLE_DEVICES`.
+
 ### Cluster Paths
 ```
 /lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk/cosmos/Cosmos-H-Surgical/transfer/
