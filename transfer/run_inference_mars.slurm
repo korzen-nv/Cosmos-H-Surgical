@@ -57,11 +57,19 @@ echo ''
 python -c 'import torch; print(f\"PyTorch {torch.__version__}, CUDA avail={torch.cuda.is_available()}, GPUs={torch.cuda.device_count()}\")' || echo 'No PyTorch'
 echo ''
 
-# Install project deps (resolve from pyproject.toml, keep existing PyTorch)
+# Install project deps
+# Note: pyproject.toml uses uv workspace (cosmos-oss==0.1.0 override),
+# so we install everything --no-deps, then install actual deps from requirements
 echo '=== Installing dependencies ==='
 pip install hatchling hatch-vcs
 pip install --no-deps packages/*
-pip install -e '.[cu128]'
+pip install --no-deps -e .
+pip install -r docker/nightly-requirements.txt || {
+    echo 'Some pinned versions failed (Python 3.10 vs 3.12). Trying with loose versions...'
+    # Remove version pins that require Python 3.11+
+    sed 's/==.*//g' docker/nightly-requirements.txt > /tmp/loose-reqs.txt
+    pip install -r /tmp/loose-reqs.txt
+}
 echo 'Install complete.'
 echo ''
 
