@@ -51,7 +51,15 @@ NUM_GPUS=$4
 # Set HF token from cached credentials
 if [ -f /root/.cache/huggingface/token ]; then
     export HF_TOKEN=$(cat /root/.cache/huggingface/token)
-    echo "HF_TOKEN set from cache"
+    export HUGGING_FACE_HUB_TOKEN=$HF_TOKEN
+    echo "HF_TOKEN set from cache (${#HF_TOKEN} chars)"
+    # Also write token to default location for uvx/hf CLI
+    mkdir -p ~/.cache/huggingface
+    echo "$HF_TOKEN" > ~/.cache/huggingface/token
+    # Login via huggingface-cli as well
+    python -c "from huggingface_hub import login; login(token='$HF_TOKEN')" 2>/dev/null || true
+else
+    echo "WARNING: No HF token found at /root/.cache/huggingface/token"
 fi
 
 echo "=== Container Environment ==="
