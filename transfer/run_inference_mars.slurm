@@ -70,7 +70,8 @@ pip install --no-deps \
     'peft>=0.17.1' \
     'timm>=1.0.24' \
     'sam2>=1.1.0' \
-    'transformers==4.51.3'
+    'transformers==4.51.3' \
+    'deepspeed>=0.16.0'
 
 pip install \
     'cattrs>=25.2.0' \
@@ -98,7 +99,7 @@ pip install \
     'opencv-python>=4.11.0.86' \
     'pandas>=2.3.0' \
     'pillow>=11.3.0' \
-    'pydantic>=2.11.7,<2.12' \
+    'pydantic>=2.11.7' \
     'safetensors>=0.6.2' \
     'scikit-image>=0.25.2' \
     'scipy>=1.15.3' \
