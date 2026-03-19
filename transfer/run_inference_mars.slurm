@@ -105,6 +105,7 @@ pip install \
     'sentencepiece>=0.2.1' \
     'tqdm>=4.67.1' \
     'tyro>=0.9.35' \
+    'tokenizers>=0.21,<0.22' \
     'decord>=0.6.0' \
     'retinaface-py>=0.0.2' \
     'qwen-vl-utils>=0.0.14' \
