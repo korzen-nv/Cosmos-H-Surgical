@@ -14,7 +14,7 @@ LUSTRE_USER=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk
 WORK_DIR=$LUSTRE_USER/cosmos/Cosmos-H-Surgical/transfer
 PIP_CACHE=$LUSTRE_USER/.pip_cache
 HF_CACHE=$LUSTRE_USER/.cache/huggingface
-# Existing container from the old cosmos project (has PyTorch + CUDA)
+# Existing container (PyTorch 2.5, CUDA 12.6, flash_attn, Python 3.10)
 CONTAINER=/lustre/fsw/portfolios/healthcareeng/projects/healthcareeng_holoscan/user_data/lzbinden/containers/im4-onelogger.sqsh
 
 # --- Args (defaults) ---
@@ -38,94 +38,108 @@ echo "=== GPU Info ==="
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 echo ""
 
+# --- Create install script (avoids quoting issues in srun bash -c) ---
+cat > /tmp/cosmos_install_and_run.sh << 'INSTALL_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+INPUT_FILE=$1
+OUTPUT_DIR=$2
+CONTROL=$3
+NUM_GPUS=$4
+
+echo "=== Container Environment ==="
+python --version
+nvcc --version 2>/dev/null | tail -1 || echo "no nvcc"
+python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA={torch.cuda.is_available()}, GPUs={torch.cuda.device_count()}')"
+echo ""
+
+# Install workspace packages (--no-deps to avoid cosmos-oss==0.1.0 conflict)
+echo "=== Installing dependencies ==="
+pip install hatchling hatch-vcs 2>&1 | tail -1
+pip install --no-deps packages/* 2>&1 | tail -1
+pip install --no-deps -e . 2>&1 | tail -1
+
+# Install actual deps from pyproject.toml (>= pins resolve for Python 3.10)
+# Skip: cosmos-oss (installed above), torch/nvidia (in container)
+pip install \
+    'cattrs>=25.2.0' \
+    'easydict>=1.9' \
+    'moderngl>=5.11.1' \
+    'natsort>=8.4.0' \
+    'OpenEXR>=3.3.1' \
+    'pyarrow>=21.0.0' \
+    'sam2>=1.1.0' \
+    'shapely>=2.0.5' \
+    'albumentations>=2.0.8' \
+    'attrs>=25.4.0' \
+    'av>=16.0.1' \
+    'better-profanity>=0.7.0' \
+    'click>=8.3.0' \
+    'diffusers>=0.35.2' \
+    'einops>=0.8.1' \
+    'ftfy>=6.3.1' \
+    'huggingface-hub>=0.36.0' \
+    'imageio[pyav,ffmpeg]>=2.37.0' \
+    'loguru>=0.7.3' \
+    'mediapy>=1.2.4' \
+    'megatron-core>=0.12.0' \
+    'ml-dtypes>=0.5.3' \
+    'numpy' \
+    'numpydantic>=1.7.0' \
+    'omegaconf>=2.3.0' \
+    'opencv-python>=4.11.0.86' \
+    'pandas>=2.3.0' \
+    'peft>=0.17.1' \
+    'pillow>=11.3.0' \
+    'pydantic>=2.11.7' \
+    'safetensors>=0.6.2' \
+    'scikit-image>=0.25.2' \
+    'scipy>=1.15.3' \
+    'sentencepiece>=0.2.1' \
+    'timm>=1.0.24' \
+    'tqdm>=4.67.1' \
+    'transformers==4.51.3' \
+    'tyro>=0.9.35' \
+    'decord>=0.6.0' \
+    'retinaface-py>=0.0.2' \
+    'qwen-vl-utils>=0.0.14' \
+    'webdataset>=1.0.2' \
+    'wandb>=0.22.2' \
+    2>&1 | tail -5
+
+pip install 'video-depth-anything @ git+https://github.com/jeanachoi/Video-Depth-Anything.git' 2>&1 | tail -3 || echo "video-depth-anything failed (optional)"
+echo "Install complete."
+echo ""
+
+# Verify
+python -c "import cosmos_transfer2; print('cosmos_transfer2 imported OK')"
+echo ""
+
+# Run inference
+echo "=== Running inference ==="
+mkdir -p $OUTPUT_DIR
+
+torchrun \
+    --nproc_per_node=$NUM_GPUS \
+    --nnodes=1 \
+    --node_rank=0 \
+    examples/inference.py \
+    -i $INPUT_FILE \
+    -o $OUTPUT_DIR \
+    $CONTROL
+
+echo ""
+echo "=== Done ==="
+ls -la $OUTPUT_DIR/
+INSTALL_SCRIPT
+
+chmod +x /tmp/cosmos_install_and_run.sh
+
 # --- Run in container ---
 srun \
     --container-image="$CONTAINER" \
-    --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip" \
+    --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,/tmp/cosmos_install_and_run.sh:/tmp/cosmos_install_and_run.sh" \
     --container-workdir=/workspace \
     --no-container-mount-home \
-    bash -c "
-set -euo pipefail
-
-echo '=== Container Environment ==='
-python --version
-nvcc --version 2>/dev/null | tail -1 || echo 'no nvcc'
-pip --version
-echo ''
-
-# Check what PyTorch we have
-python -c 'import torch; print(f\"PyTorch {torch.__version__}, CUDA avail={torch.cuda.is_available()}, GPUs={torch.cuda.device_count()}\")' || echo 'No PyTorch'
-echo ''
-
-# Install project deps
-# Note: pyproject.toml uses uv workspace (cosmos-oss==0.1.0 override),
-# so we install everything --no-deps, then install actual deps from requirements
-# Container has PyTorch 2.5 + flash_attn + CUDA 12.6 - DO NOT overwrite these
-echo '=== Installing dependencies ==='
-
-# Filter nightly-requirements.txt:
-# - Remove lines with platform_machine markers (old pip can't parse)
-# - Remove packages that would overwrite container's PyTorch/CUDA stack
-# - Remove packages requiring Python 3.11+ (container has 3.10)
-python3 -c \"
-import sys
-skip_prefixes = [
-    'torch==', 'torchvision==', 'torchaudio==', 'torchao==',
-    'triton==', 'nvidia-', 'cuda-', 'flash-attn', 'flash_attn',
-    'transformer-engine', 'apex',
-    'decord @',  # aarch64 wheel URL
-]
-# Packages pinned at versions requiring Python 3.11+ — use unpinned
-# All packages whose pinned versions require Python 3.11+
-py311_packages = {
-    'contourpy', 'ipython', 'ipykernel', 'ipywidgets',
-    'networkx', 'pytokens', 'pyrefly', 'pyproject-api',
-}
-skip_exact = set()
-with open('docker/nightly-requirements.txt') as f:
-    for line in f:
-        line = line.strip()
-        if not line or line.startswith('#'):
-            continue
-        if 'platform_machine' in line:
-            continue
-        if any(line.startswith(p) for p in skip_prefixes):
-            continue
-        # Strip version pin for packages needing Python 3.11+
-        pkg_name = line.split('==')[0].split('>=')[0].split('[')[0]
-        if pkg_name in py311_packages:
-            print(pkg_name)
-            continue
-        print(line)
-\" > /tmp/filtered-reqs.txt
-
-echo \"Installing \$(wc -l < /tmp/filtered-reqs.txt) packages (keeping container PyTorch)...\"
-pip install hatchling hatch-vcs
-pip install --no-deps packages/*
-pip install --no-deps -e .
-pip install -r /tmp/filtered-reqs.txt
-pip install decord
-echo 'Install complete.'
-echo ''
-
-# Verify import
-python -c 'import cosmos_transfer2; print(\"cosmos_transfer2 imported OK\")'
-echo ''
-
-# Run inference
-echo '=== Running inference ==='
-mkdir -p $OUTPUT_DIR
-
-torchrun \\
-    --nproc_per_node=$NUM_GPUS \\
-    --nnodes=1 \\
-    --node_rank=0 \\
-    examples/inference.py \\
-    -i $INPUT_FILE \\
-    -o $OUTPUT_DIR \\
-    $CONTROL
-
-echo ''
-echo '=== Done ==='
-ls -la $OUTPUT_DIR/
-"
+    bash /tmp/cosmos_install_and_run.sh "$INPUT_FILE" "$OUTPUT_DIR" "$CONTROL" "$NUM_GPUS"
