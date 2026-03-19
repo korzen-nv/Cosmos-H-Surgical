@@ -8,7 +8,7 @@ from pathlib import Path
 WEIGHTS = [0.25, 0.5, 0.75, 1.0]
 CONTROLS = ["depth", "edge", "vis", "seg"]
 
-BASE_DIR = "inputs/open_h/nonexpert-2026-01-15_16-50-48"
+BASE_DIR = "/workspace/inputs/open_h/nonexpert-2026-01-15_16-50-48"
 
 TEMPLATE = {
     "prompt": "real surgery scene: robotic cholecystectomy procedure with surgical instruments manipulating tissue",
