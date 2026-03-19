@@ -61,6 +61,7 @@ echo ''
 # Note: pyproject.toml uses uv workspace (cosmos-oss==0.1.0 override),
 # so we install everything --no-deps, then install actual deps from requirements
 echo '=== Installing dependencies ==='
+pip install --upgrade pip
 pip install hatchling hatch-vcs
 pip install --no-deps packages/*
 pip install --no-deps -e .
