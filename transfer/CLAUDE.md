@@ -95,6 +95,51 @@ just docker-cu130           # build and run CUDA 13.0 container
 
 For inference performance benchmarks and optimization ideas, see [`PERFORMANCE.md`](PERFORMANCE.md).
 
+For cluster access and Slurm usage, see [`../SLURM.md`](../SLURM.md).
+
+## MARS Cluster Inference
+
+### Quick Start
+```bash
+SSH_HOST=pkorzeniowsk@pkorzeniowsk-oci-iad-cs.park.nvidia.com
+COSMOS_ROOT=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk/cosmos/Cosmos-H-Surgical/transfer
+
+# Submit inference job (multicontrol example, 8 GPUs)
+ssh $SSH_HOST "cd $COSMOS_ROOT && sbatch run_inference_mars.slurm assets/multicontrol.jsonl outputs/mars_test depth 8"
+
+# Monitor
+ssh $SSH_HOST "squeue -A healthcareeng_holoscan"
+ssh $SSH_HOST "tail -f $COSMOS_ROOT/logs/cosmos_transfer_inf_*.log"
+
+# Download results
+scp "$SSH_HOST:$COSMOS_ROOT/outputs/mars_test/*.mp4" .
+```
+
+### Slurm Script: `run_inference_mars.slurm`
+```bash
+sbatch run_inference_mars.slurm [INPUT_FILE] [OUTPUT_DIR] [CONTROL] [NUM_GPUS]
+# Defaults: assets/multicontrol.jsonl, outputs/mars_test, depth, 8
+```
+
+**Container**: `im4-onelogger.sqsh` (PyTorch 2.5, CUDA 12.6, Python 3.10, 8x A100-80GB)
+
+**Key constraints** (container compatibility):
+- `numpy<2` — container's PyTorch 2.5 compiled against NumPy 1.x
+- `megatron-core<0.14` — newer versions need NumPy 2
+- `deepspeed>=0.16` installed `--no-deps` — fixes pydantic-core 2.33 compat
+- Torch-dependent packages (`megatron-core`, `diffusers`, `peft`, `timm`, `sam2`, `transformers`) installed `--no-deps` to prevent upgrading container's PyTorch
+
+**First run** downloads ~20GB of checkpoints (edge/depth/seg/vis + tokenizer + text encoder) to HF cache on Lustre.
+
+### Cluster Paths
+```
+/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk/cosmos/Cosmos-H-Surgical/transfer/
+├── run_inference_mars.slurm      # Main Slurm inference script
+├── build_container.slurm         # NGC image import (if needed)
+├── outputs/mars_test/            # Inference results
+└── logs/                         # Job logs
+```
+
 ## Datasets
 
 ### Accessing datasets
