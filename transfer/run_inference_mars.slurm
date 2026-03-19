@@ -10,13 +10,16 @@
 set -euo pipefail
 
 # --- Paths ---
-WORK_DIR=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk/cosmos/Cosmos-H-Surgical/transfer
-UV_CACHE=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk/.uv_cache
-HF_CACHE=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk/.cache/huggingface
+LUSTRE_USER=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk
+WORK_DIR=$LUSTRE_USER/cosmos/Cosmos-H-Surgical/transfer
+UV_INSTALL_DIR=$LUSTRE_USER/.local/uv
+UV_CACHE=$LUSTRE_USER/.uv_cache
+HF_CACHE=$LUSTRE_USER/.cache/huggingface
 
 export UV_CACHE_DIR=$UV_CACHE
 export HF_HOME=$HF_CACHE
-export XDG_CACHE_HOME=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk/.cache
+export XDG_CACHE_HOME=$LUSTRE_USER/.cache
+export PATH=$UV_INSTALL_DIR/bin:$LUSTRE_USER/.local/bin:$PATH
 
 # --- Args (defaults) ---
 INPUT_FILE=${1:-assets/multicontrol.jsonl}
@@ -39,24 +42,31 @@ echo "=== GPU Info ==="
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 echo ""
 
-# --- Check Python/CUDA versions ---
-echo "=== Environment ==="
-python3 --version
-nvcc --version 2>/dev/null | tail -1 || echo "nvcc not found"
-echo ""
-
 # --- Install uv if needed ---
 if ! command -v uv &>/dev/null; then
     echo "Installing uv..."
-    pip install --quiet uv
+    mkdir -p $UV_INSTALL_DIR
+    curl -LsSf https://astral.sh/uv/install.sh | CARGO_HOME=$UV_INSTALL_DIR sh
+    export PATH=$UV_INSTALL_DIR/bin:$PATH
 fi
 echo "uv version: $(uv --version)"
 
+# --- Install Python 3.10+ via uv (compute nodes have 3.8) ---
+echo "=== Setting up Python ==="
+uv python install 3.12
+echo "Python: $(uv python find 3.12)"
+echo ""
+
 # --- Install dependencies (first run only, cached after) ---
 echo "=== Installing dependencies ==="
-uv python install
 uv sync --extra=cu128
 echo "Install complete."
+echo ""
+
+# --- Environment info ---
+echo "=== Environment ==="
+uv run --no-sync python --version
+uv run --no-sync python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA {torch.cuda.is_available()}, GPUs {torch.cuda.device_count()}')"
 echo ""
 
 # --- Run inference ---
