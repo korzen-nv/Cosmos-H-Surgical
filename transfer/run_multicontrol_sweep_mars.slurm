@@ -34,8 +34,9 @@ TOTAL_SPECS=$(wc -l < "$INPUT_JSONL")
 echo "Total specs: $TOTAL_SPECS"
 echo ""
 
-# --- Create install-and-run script ---
-cat > /tmp/cosmos_sweep.sh << 'SWEEP_SCRIPT'
+# --- Create install-and-run script (on Lustre so compute nodes can see it) ---
+SWEEP_SH=$WORK_DIR/logs/cosmos_sweep_${SLURM_JOB_ID}.sh
+cat > "$SWEEP_SH" << 'SWEEP_SCRIPT'
 #!/bin/bash
 set -euo pipefail
 
@@ -182,12 +183,12 @@ echo "=== Node $SLURM_NODEID done ==="
 ls "$OUTPUT_DIR"/*.mp4 2>/dev/null | wc -l | xargs -I{} echo "Videos in output dir: {}"
 SWEEP_SCRIPT
 
-chmod +x /tmp/cosmos_sweep.sh
+chmod +x "$SWEEP_SH"
 
 # --- Run in container (all nodes) ---
 srun \
     --container-image="$CONTAINER" \
-    --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,/tmp/cosmos_sweep.sh:/tmp/cosmos_sweep.sh" \
+    --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,$SWEEP_SH:/tmp/cosmos_sweep.sh" \
     --container-workdir=/workspace \
     --no-container-mount-home \
     bash /tmp/cosmos_sweep.sh "$INPUT_JSONL" "$OUTPUT_DIR" "$CONTROL" "$TOTAL_SPECS"
