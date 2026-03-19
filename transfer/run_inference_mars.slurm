@@ -92,7 +92,7 @@ pip install \
     'loguru>=0.7.3' \
     'mediapy>=1.2.4' \
     'ml-dtypes>=0.5.3' \
-    'numpy' \
+    'numpy<2' \
     'numpydantic>=1.7.0' \
     'omegaconf>=2.3.0' \
     'opencv-python>=4.11.0.86' \
