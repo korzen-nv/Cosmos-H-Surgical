@@ -75,7 +75,9 @@ skip_prefixes = [
     'transformer-engine', 'apex',
     'decord @',  # aarch64 wheel URL
 ]
-skip_exact = {'contourpy==1.3.3'}  # needs Python 3.11+
+# Packages pinned at versions requiring Python 3.11+ — use unpinned
+py311_packages = {'contourpy', 'ipython', 'ipykernel', 'ipywidgets'}
+skip_exact = set()
 with open('docker/nightly-requirements.txt') as f:
     for line in f:
         line = line.strip()
@@ -85,9 +87,10 @@ with open('docker/nightly-requirements.txt') as f:
             continue
         if any(line.startswith(p) for p in skip_prefixes):
             continue
-        if line in skip_exact:
-            # Use compatible version instead
-            print('contourpy')
+        # Strip version pin for packages needing Python 3.11+
+        pkg_name = line.split('==')[0].split('>=')[0].split('[')[0]
+        if pkg_name in py311_packages:
+            print(pkg_name)
             continue
         print(line)
 \" > /tmp/filtered-reqs.txt
