@@ -98,7 +98,7 @@ pip install \
     'opencv-python>=4.11.0.86' \
     'pandas>=2.3.0' \
     'pillow>=11.3.0' \
-    'pydantic>=2.11.7' \
+    'pydantic>=2.11.7,<2.12' \
     'safetensors>=0.6.2' \
     'scikit-image>=0.25.2' \
     'scipy>=1.15.3' \
