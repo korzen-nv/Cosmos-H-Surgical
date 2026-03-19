@@ -65,7 +65,7 @@ pip install --no-deps -e . 2>&1 | tail -1
 # CRITICAL: Use --no-deps to prevent transitive deps from upgrading torch
 # Then install only the light deps that don't pull in torch
 pip install --no-deps \
-    'megatron-core>=0.12.0' \
+    'megatron-core>=0.12.0,<0.14' \
     'diffusers>=0.35.2' \
     'peft>=0.17.1' \
     'timm>=1.0.24' \
