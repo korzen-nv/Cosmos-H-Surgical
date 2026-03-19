@@ -60,17 +60,28 @@ echo ''
 # Install project deps
 # Note: pyproject.toml uses uv workspace (cosmos-oss==0.1.0 override),
 # so we install everything --no-deps, then install actual deps from requirements
+# Container pip is old (24.2), so we filter problematic lines from requirements
 echo '=== Installing dependencies ==='
-pip install --upgrade pip
+
+# Filter nightly-requirements.txt for Python 3.10 + old pip compatibility:
+# 1. Remove exact version pins (some need Python 3.11+)
+# 2. Remove lines with platform_machine markers (old pip can't parse)
+# 3. Remove decord aarch64 wheel URL line
+# 4. Skip packages already in the container (torch, etc.)
+grep -v 'platform_machine' docker/nightly-requirements.txt \
+    | grep -v '^torch==' \
+    | grep -v '^torchvision==' \
+    | grep -v '^torchaudio==' \
+    | grep -v '^nvidia-' \
+    | sed 's/==.*//g' \
+    > /tmp/filtered-reqs.txt
+
+echo \"Installing \$(wc -l < /tmp/filtered-reqs.txt) packages...\"
 pip install hatchling hatch-vcs
 pip install --no-deps packages/*
 pip install --no-deps -e .
-pip install -r docker/nightly-requirements.txt || {
-    echo 'Some pinned versions failed (Python 3.10 vs 3.12). Trying with loose versions...'
-    # Remove version pins that require Python 3.11+
-    sed 's/==.*//g' docker/nightly-requirements.txt > /tmp/loose-reqs.txt
-    pip install -r /tmp/loose-reqs.txt
-}
+pip install -r /tmp/filtered-reqs.txt
+pip install decord
 echo 'Install complete.'
 echo ''
 
