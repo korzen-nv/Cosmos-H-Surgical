@@ -76,7 +76,11 @@ skip_prefixes = [
     'decord @',  # aarch64 wheel URL
 ]
 # Packages pinned at versions requiring Python 3.11+ — use unpinned
-py311_packages = {'contourpy', 'ipython', 'ipykernel', 'ipywidgets'}
+# All packages whose pinned versions require Python 3.11+
+py311_packages = {
+    'contourpy', 'ipython', 'ipykernel', 'ipywidgets',
+    'networkx', 'pytokens', 'pyrefly', 'pyproject-api',
+}
 skip_exact = set()
 with open('docker/nightly-requirements.txt') as f:
     for line in f:
