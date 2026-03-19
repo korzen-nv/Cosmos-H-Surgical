@@ -56,7 +56,7 @@ echo ""
 
 # Install workspace packages (--no-deps to avoid cosmos-oss==0.1.0 conflict)
 echo "=== Installing dependencies ==="
-pip install hatchling hatch-vcs 2>&1 | tail -1
+pip install hatchling hatch-vcs uv 2>&1 | tail -1
 pip install --no-deps packages/* 2>&1 | tail -1
 pip install --no-deps -e . 2>&1 | tail -1
 
