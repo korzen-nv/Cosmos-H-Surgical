@@ -60,23 +60,39 @@ echo ''
 # Install project deps
 # Note: pyproject.toml uses uv workspace (cosmos-oss==0.1.0 override),
 # so we install everything --no-deps, then install actual deps from requirements
-# Container pip is old (24.2), so we filter problematic lines from requirements
+# Container has PyTorch 2.5 + flash_attn + CUDA 12.6 - DO NOT overwrite these
 echo '=== Installing dependencies ==='
 
-# Filter nightly-requirements.txt for Python 3.10 + old pip compatibility:
-# 1. Remove exact version pins (some need Python 3.11+)
-# 2. Remove lines with platform_machine markers (old pip can't parse)
-# 3. Remove decord aarch64 wheel URL line
-# 4. Skip packages already in the container (torch, etc.)
-grep -v 'platform_machine' docker/nightly-requirements.txt \
-    | grep -v '^torch==' \
-    | grep -v '^torchvision==' \
-    | grep -v '^torchaudio==' \
-    | grep -v '^nvidia-' \
-    | sed 's/==.*//g' \
-    > /tmp/filtered-reqs.txt
+# Filter nightly-requirements.txt:
+# - Remove lines with platform_machine markers (old pip can't parse)
+# - Remove packages that would overwrite container's PyTorch/CUDA stack
+# - Remove packages requiring Python 3.11+ (container has 3.10)
+python3 -c \"
+import sys
+skip_prefixes = [
+    'torch==', 'torchvision==', 'torchaudio==', 'torchao==',
+    'triton==', 'nvidia-', 'cuda-', 'flash-attn', 'flash_attn',
+    'transformer-engine', 'apex',
+    'decord @',  # aarch64 wheel URL
+]
+skip_exact = {'contourpy==1.3.3'}  # needs Python 3.11+
+with open('docker/nightly-requirements.txt') as f:
+    for line in f:
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        if 'platform_machine' in line:
+            continue
+        if any(line.startswith(p) for p in skip_prefixes):
+            continue
+        if line in skip_exact:
+            # Use compatible version instead
+            print('contourpy')
+            continue
+        print(line)
+\" > /tmp/filtered-reqs.txt
 
-echo \"Installing \$(wc -l < /tmp/filtered-reqs.txt) packages...\"
+echo \"Installing \$(wc -l < /tmp/filtered-reqs.txt) packages (keeping container PyTorch)...\"
 pip install hatchling hatch-vcs
 pip install --no-deps packages/*
 pip install --no-deps -e .
