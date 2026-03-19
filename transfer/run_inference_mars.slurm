@@ -62,6 +62,16 @@ pip install --no-deps -e . 2>&1 | tail -1
 
 # Install actual deps from pyproject.toml (>= pins resolve for Python 3.10)
 # Skip: cosmos-oss (installed above), torch/nvidia (in container)
+# CRITICAL: Use --no-deps to prevent transitive deps from upgrading torch
+# Then install only the light deps that don't pull in torch
+pip install --no-deps \
+    'megatron-core>=0.12.0' \
+    'diffusers>=0.35.2' \
+    'peft>=0.17.1' \
+    'timm>=1.0.24' \
+    'sam2>=1.1.0' \
+    'transformers==4.51.3'
+
 pip install \
     'cattrs>=25.2.0' \
     'easydict>=1.9' \
@@ -69,37 +79,31 @@ pip install \
     'natsort>=8.4.0' \
     'OpenEXR>=3.3.1' \
     'pyarrow>=21.0.0' \
-    'sam2>=1.1.0' \
     'shapely>=2.0.5' \
     'albumentations>=2.0.8' \
     'attrs>=25.4.0' \
     'av>=16.0.1' \
     'better-profanity>=0.7.0' \
     'click>=8.3.0' \
-    'diffusers>=0.35.2' \
     'einops>=0.8.1' \
     'ftfy>=6.3.1' \
     'huggingface-hub>=0.36.0' \
     'imageio[pyav,ffmpeg]>=2.37.0' \
     'loguru>=0.7.3' \
     'mediapy>=1.2.4' \
-    'megatron-core>=0.12.0' \
     'ml-dtypes>=0.5.3' \
     'numpy' \
     'numpydantic>=1.7.0' \
     'omegaconf>=2.3.0' \
     'opencv-python>=4.11.0.86' \
     'pandas>=2.3.0' \
-    'peft>=0.17.1' \
     'pillow>=11.3.0' \
     'pydantic>=2.11.7' \
     'safetensors>=0.6.2' \
     'scikit-image>=0.25.2' \
     'scipy>=1.15.3' \
     'sentencepiece>=0.2.1' \
-    'timm>=1.0.24' \
     'tqdm>=4.67.1' \
-    'transformers==4.51.3' \
     'tyro>=0.9.35' \
     'decord>=0.6.0' \
     'retinaface-py>=0.0.2' \
