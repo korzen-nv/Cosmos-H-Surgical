@@ -168,7 +168,10 @@ for gpu in $(seq 0 $((GPUS_PER_NODE - 1))); do
 
     echo "GPU $gpu (global $GPU_GLOBAL): specs $START-$END ($NUM_LINES lines)"
 
-    CUDA_VISIBLE_DEVICES=$gpu python examples/inference.py \
+    CUDA_VISIBLE_DEVICES=$gpu \
+    MASTER_PORT=$((29500 + GPU_GLOBAL)) \
+    WORLD_SIZE=1 RANK=0 LOCAL_RANK=0 \
+    python examples/inference.py \
         -i "$TEMP_JSONL" \
         -o "$OUTPUT_DIR" \
         "$CONTROL" \
