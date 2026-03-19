@@ -48,6 +48,12 @@ OUTPUT_DIR=$2
 CONTROL=$3
 NUM_GPUS=$4
 
+# Set HF token from cached credentials
+if [ -f /root/.cache/huggingface/token ]; then
+    export HF_TOKEN=$(cat /root/.cache/huggingface/token)
+    echo "HF_TOKEN set from cache"
+fi
+
 echo "=== Container Environment ==="
 python --version
 nvcc --version 2>/dev/null | tail -1 || echo "no nvcc"
