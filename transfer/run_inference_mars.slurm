@@ -59,8 +59,10 @@ echo ''
 
 # Install project deps (resolve from pyproject.toml, keep existing PyTorch)
 echo '=== Installing dependencies ==='
-pip install --no-deps packages/* 2>&1 | tail -3
-pip install -e '.[cu128]' --no-build-isolation 2>&1 | tail -10
+pip install hatchling hatch-vcs
+pip install --no-deps packages/*
+pip install -e '.[cu128]'
+echo 'Install complete.'
 echo ''
 
 # Verify import
