@@ -19,7 +19,7 @@ HF_CACHE=$LUSTRE_USER/.cache/huggingface
 export UV_CACHE_DIR=$UV_CACHE
 export HF_HOME=$HF_CACHE
 export XDG_CACHE_HOME=$LUSTRE_USER/.cache
-export PATH=$UV_INSTALL_DIR/bin:$LUSTRE_USER/.local/bin:$PATH
+export PATH=$LUSTRE_USER/.local/bin:$HOME/.local/bin:$UV_INSTALL_DIR/bin:$PATH
 
 # --- Args (defaults) ---
 INPUT_FILE=${1:-assets/multicontrol.jsonl}
@@ -45,9 +45,9 @@ echo ""
 # --- Install uv if needed ---
 if ! command -v uv &>/dev/null; then
     echo "Installing uv..."
-    mkdir -p $UV_INSTALL_DIR
-    curl -LsSf https://astral.sh/uv/install.sh | CARGO_HOME=$UV_INSTALL_DIR sh
-    export PATH=$UV_INSTALL_DIR/bin:$PATH
+    curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=$LUSTRE_USER/.local/bin sh
+    export PATH=$LUSTRE_USER/.local/bin:$PATH
+    hash -r
 fi
 echo "uv version: $(uv --version)"
 
