@@ -106,6 +106,7 @@ pip install \
     'qwen-vl-utils>=0.0.14' \
     'webdataset>=1.0.2' \
     'wandb>=0.22.2' \
+    'multi-storage-client>=0.40.0' \
     2>&1 | tail -5
 
 pip install 'video-depth-anything @ git+https://github.com/jeanachoi/Video-Depth-Anything.git' 2>&1 | tail -3 || echo "video-depth-anything failed (optional)"
