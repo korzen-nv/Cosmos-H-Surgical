@@ -57,11 +57,10 @@ echo ''
 python -c 'import torch; print(f\"PyTorch {torch.__version__}, CUDA avail={torch.cuda.is_available()}, GPUs={torch.cuda.device_count()}\")' || echo 'No PyTorch'
 echo ''
 
-# Install project deps
+# Install project deps (resolve from pyproject.toml, keep existing PyTorch)
 echo '=== Installing dependencies ==='
-pip install --no-deps -e . 2>&1 | tail -3
-pip install -r docker/nightly-requirements.txt 2>&1 | tail -3
 pip install --no-deps packages/* 2>&1 | tail -3
+pip install -e '.[cu128]' --no-build-isolation 2>&1 | tail -10
 echo ''
 
 # Verify import
