@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=cosmos_sweep
 #SBATCH --output=logs/%x_%j.log
-#SBATCH --time=08:00:00
+#SBATCH --time=04:00:00
 #SBATCH --nodes=8
 #SBATCH --gpus-per-node=8
 #SBATCH --ntasks-per-node=1
