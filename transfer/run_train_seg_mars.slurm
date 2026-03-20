@@ -199,6 +199,8 @@ torchrun \
     trainer.max_iter=$MAX_ITER \
     trainer.logging_iter=50 \
     trainer.run_validation=False \
+    trainer.callbacks.heart_beat=None \
+    upload_reproducible_setup=False \
     job.wandb_mode=offline
 
 echo ""
