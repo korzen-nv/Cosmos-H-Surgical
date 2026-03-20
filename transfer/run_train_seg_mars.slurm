@@ -183,7 +183,8 @@ torchrun \
     job.name=seg_openh_atlas120k_finetune \
     model.config.hint_keys=seg \
     model.config.fsdp_shard_size=8 \
-    model.config.base_load_from=None \
+    model.config.base_load_from.load_path=None \
+    model.config.base_load_from.credentials=None \
     model_parallel.context_parallel_size=1 \
     dataloader_train.dataset.dataset_dir=$DATASET_DIR \
     dataloader_train.dataset.json_path=$JSON_PATH \
