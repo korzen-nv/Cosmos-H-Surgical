@@ -152,14 +152,21 @@ export MASTER_ADDR=$(hostname)
 export MASTER_PORT=12341
 export NCCL_DEBUG=WARN
 
+# Save checkpoints to lustre (not ephemeral /tmp)
+export IMAGINAIRE_OUTPUT_ROOT=$CKPT_DIR/output
+
 echo "=== Starting training ==="
 echo "  Nodes:    $SLURM_NNODES"
 echo "  GPUs:     8"
 echo "  Dataset:  $DATASET_DIR"
 echo "  Checkpoint: $SEG_CKPT"
+echo "  Output:   $IMAGINAIRE_OUTPUT_ROOT"
 echo "  Max iter: $MAX_ITER"
 echo "  LR:       $LR"
 echo ""
+
+# RESUME_STATE: set to True for continuation jobs, False for first run
+RESUME_STATE=${7:-False}
 
 torchrun \
     --nproc_per_node=8 \
@@ -176,13 +183,14 @@ torchrun \
     job.name=seg_openh_atlas120k_finetune \
     model.config.hint_keys=seg \
     model.config.fsdp_shard_size=8 \
+    model.config.base_load_from=None \
     model_parallel.context_parallel_size=1 \
     dataloader_train.dataset.dataset_dir=$DATASET_DIR \
     dataloader_train.dataset.json_path=$JSON_PATH \
     dataloader_train.dataset.enlarged_factor=10.0 \
     dataloader_train.dataset.hint_key=control_input_seg \
     checkpoint.load_path=$SEG_CKPT \
-    checkpoint.load_training_state=False \
+    checkpoint.load_training_state=$RESUME_STATE \
     checkpoint.strict_resume=False \
     checkpoint.save_iter=$SAVE_ITER \
     checkpoint.save_to_object_store.enabled=False \
@@ -196,10 +204,12 @@ torchrun \
 echo ""
 echo "=== Training complete ==="
 echo "Checkpoints:"
-ls -la $CKPT_DIR/ 2>/dev/null || echo "Check job output dir for checkpoints"
+find $IMAGINAIRE_OUTPUT_ROOT -name "iter_*" -type d 2>/dev/null || echo "No checkpoints found"
 TRAIN_SCRIPT
 
 chmod +x /tmp/cosmos_train.sh
+
+RESUME_STATE=${7:-False}
 
 # --- Run in container ---
 srun \
@@ -207,4 +217,4 @@ srun \
     --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,$DATASET_DIR:$DATASET_DIR,$JSON_PATH:$JSON_PATH,$CKPT_DIR:$CKPT_DIR,/tmp/cosmos_train.sh:/tmp/cosmos_train.sh" \
     --container-workdir=/workspace \
     --no-container-mount-home \
-    bash /tmp/cosmos_train.sh "$DATASET_DIR" "$JSON_PATH" "$CKPT_DIR" "$MAX_ITER" "$LR" "$SAVE_ITER"
+    bash /tmp/cosmos_train.sh "$DATASET_DIR" "$JSON_PATH" "$CKPT_DIR" "$MAX_ITER" "$LR" "$SAVE_ITER" "$RESUME_STATE"
