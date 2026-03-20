@@ -3,7 +3,7 @@
 #SBATCH --output=logs/%x_%j.log
 #SBATCH --time=01:00:00
 #SBATCH --nodes=1
-#SBATCH --gpus-per-node=0
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=interactive,batch_block1,batch_block3,batch_block4
 #SBATCH --account=healthcareeng_holoscan
