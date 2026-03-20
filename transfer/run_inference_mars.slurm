@@ -14,8 +14,13 @@ LUSTRE_USER=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk
 WORK_DIR=$LUSTRE_USER/cosmos/Cosmos-H-Surgical/transfer
 PIP_CACHE=$LUSTRE_USER/.pip_cache
 HF_CACHE=$LUSTRE_USER/.cache/huggingface
-# Existing container (PyTorch 2.5, CUDA 12.6, flash_attn, Python 3.10)
-CONTAINER=/lustre/fsw/portfolios/healthcareeng/projects/healthcareeng_holoscan/user_data/lzbinden/containers/im4-onelogger.sqsh
+# Use pre-built container if available, otherwise fall back to base
+COSMOS_CONTAINER=$LUSTRE_USER/cosmos/containers/cosmos-h-surgical-transfer.sqsh
+BASE_CONTAINER=/lustre/fsw/portfolios/healthcareeng/projects/healthcareeng_holoscan/user_data/lzbinden/containers/im4-onelogger.sqsh
+CONTAINER=${COSMOS_CONTAINER}
+if [ ! -f "$CONTAINER" ]; then
+    CONTAINER=$BASE_CONTAINER
+fi
 
 # --- Args (defaults) ---
 INPUT_FILE=${1:-assets/multicontrol.jsonl}
