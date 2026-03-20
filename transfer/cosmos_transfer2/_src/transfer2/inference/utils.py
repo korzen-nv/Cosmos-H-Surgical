@@ -551,6 +551,20 @@ def _compute_depth_maps(video_np: np.ndarray) -> torch.Tensor | None:
     try:
         from cosmos_transfer2._src.transfer2.auxiliary.depth_anything.video_depth_model import VideoDepthAnythingModel
 
+        # Disable xformers in video_depth_anything motion module to avoid flash-attention
+        # Hopper kernel incompatibility on Blackwell GPUs (sm_100 vs sm_90).
+        try:
+            import video_depth_anything.motion_module.motion_module as _vda_mm
+            import video_depth_anything.motion_module.attention as _vda_ma
+            import video_depth_anything.dinov2_layers.attention as _vda_da
+            import video_depth_anything.dinov2_layers.block as _vda_db
+            _vda_mm.XFORMERS_AVAILABLE = False
+            _vda_ma.XFORMERS_AVAILABLE = False
+            _vda_da.XFORMERS_AVAILABLE = False
+            _vda_db.XFORMERS_AVAILABLE = False
+        except Exception:
+            pass
+
         log.info(f"Computing depth for video with shape {video_np.shape}...")
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
