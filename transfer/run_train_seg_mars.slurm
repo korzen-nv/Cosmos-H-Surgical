@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=cosmos_seg_openh
 #SBATCH --output=logs/%x_%j.log
-#SBATCH --time=12:00:00
+#SBATCH --time=04:00:00
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=8
-#SBATCH --partition=backfill_singlenode,batch_singlenode,batch_block1,batch_block3,batch_block4
+#SBATCH --partition=batch_block1,batch_block3,batch_block4
 #SBATCH --account=healthcareeng_holoscan
 
 set -euo pipefail
