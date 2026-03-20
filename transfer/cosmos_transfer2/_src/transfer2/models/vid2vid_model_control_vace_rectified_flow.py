@@ -740,7 +740,7 @@ class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
             checkpoint_path = config.base_load_from["load_path"]
         else:
             checkpoint_path = None
-        if checkpoint_path is not None:
+        if checkpoint_path is not None and checkpoint_path != "None" and checkpoint_path != "":
             load_planner = DefaultLoadPlanner(allow_partial_load=True)
             if config.base_load_from.get("credentials", None):
                 cur_key_ckpt_full_path = os.path.join("s3://", checkpoint_path, "model")
