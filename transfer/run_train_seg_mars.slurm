@@ -188,7 +188,6 @@ torchrun \
     model_parallel.context_parallel_size=1 \
     dataloader_train.dataset.dataset_dir=$DATASET_DIR \
     dataloader_train.dataset.json_path=$JSON_PATH \
-    dataloader_train.dataset.enlarged_factor=10.0 \
     dataloader_train.dataset.hint_key=control_input_seg \
     checkpoint.load_path=$SEG_CKPT \
     checkpoint.load_training_state=$RESUME_STATE \
