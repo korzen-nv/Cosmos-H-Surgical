@@ -40,32 +40,17 @@ from cosmos_transfer2._src.transfer2.datasets.local_datasets.singleview_dataset_
 #         }
 #     ]
 # }
-DATA_ROOT_1 = "/datasets/dataset1"
-DATA_LIST_1 = "/datasets/dataset1/dataset1.json"
+import os
 
-DATA_ROOT_2 = "/datasets/dataset2"
-DATA_LIST_2 = "/datasets/dataset2/dataset2.json"
+_LUSTRE_USER = os.environ.get("LUSTRE_USER", "/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk")
+_ATLAS120K_OPENH = f"{_LUSTRE_USER}/cosmos/datasets/atlas120k_openh"
 
-DATA_ROOT_3 = "/datasets/dataset3"
-DATA_LIST_3 = "/datasets/dataset3/dataset3.json"
+DATA_ROOT_1 = f"{_ATLAS120K_OPENH}/train"
+DATA_LIST_1 = f"{_ATLAS120K_OPENH}/train.json"
 
-DATASET_DIR = ",".join(
-    [
-        DATA_ROOT_1,
-        DATA_ROOT_2,
-        DATA_ROOT_3,
-    ]
-)
-
-JSON_PATH = ",".join(
-    [
-        DATA_LIST_1,
-        DATA_LIST_2,
-        DATA_LIST_3,
-    ]
-)
-
-ENLARGED_FACTOR = "1.0,1.0,1.0"
+DATASET_DIR = DATA_ROOT_1
+JSON_PATH = DATA_LIST_1
+ENLARGED_FACTOR = "10.0"
 
 
 def register_dataloader_local_json() -> None:
