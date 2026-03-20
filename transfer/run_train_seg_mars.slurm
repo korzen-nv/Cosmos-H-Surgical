@@ -4,7 +4,7 @@
 #SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=8
-#SBATCH --partition=batch_block1,batch_block3,batch_block4
+#SBATCH --partition=backfill_singlenode,batch_singlenode,batch_block1,batch_block3,batch_block4
 #SBATCH --account=healthcareeng_holoscan
 
 set -euo pipefail
