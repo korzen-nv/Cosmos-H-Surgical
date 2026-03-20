@@ -22,8 +22,6 @@ TEMPLATE = {
     "video_path": f"{BASE_DIR}/color/episode_000043.mp4",
     "guidance": 3,
     "sigma_max": "70",
-    "max_frames": 1,
-    "num_video_frames_per_chunk": 1,
 }
 
 CONTROL_PATHS = {
