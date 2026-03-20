@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=cosmos_sweep
-#SBATCH --output=logs/%x_%j.log
+#SBATCH --output=logs/%x_%A_%a.log
 #SBATCH --time=04:00:00
-#SBATCH --nodes=8
+#SBATCH --nodes=1
 #SBATCH --gpus-per-node=8
-#SBATCH --ntasks-per-node=1
-#SBATCH --partition=batch_block1,batch_block3,batch_block4
+#SBATCH --array=0-7%2
+#SBATCH --partition=interactive,batch_block1,batch_block3,batch_block4
 #SBATCH --account=healthcareeng_holoscan
 
 set -euo pipefail
@@ -25,17 +25,18 @@ CONTROL=${3:-depth}
 cd $WORK_DIR
 mkdir -p logs
 
-echo "=== Sweep Job $SLURM_JOB_ID on $(hostname) ==="
-echo "Nodes: $SLURM_NNODES, GPUs/node: 8"
-echo "Input: $INPUT_JSONL"
-echo "Output: $OUTPUT_DIR"
-echo "Control subcommand: $CONTROL"
+TASK_ID=$SLURM_ARRAY_TASK_ID
 TOTAL_SPECS=$(wc -l < "$INPUT_JSONL")
-echo "Total specs: $TOTAL_SPECS"
+
+echo "=== Sweep Task $TASK_ID (Job $SLURM_ARRAY_JOB_ID) on $(hostname) ==="
+echo "Input: $INPUT_JSONL ($TOTAL_SPECS specs)"
+echo "Output: $OUTPUT_DIR"
+echo "Control: $CONTROL"
+echo "This task: node $TASK_ID of 8, GPUs $((TASK_ID * 8))-$((TASK_ID * 8 + 7))"
 echo ""
 
-# --- Create install-and-run script (on Lustre so compute nodes can see it) ---
-SWEEP_SH=$WORK_DIR/logs/cosmos_sweep_${SLURM_JOB_ID}.sh
+# --- Create run script (on Lustre so compute node can see it) ---
+SWEEP_SH=$WORK_DIR/logs/cosmos_sweep_${SLURM_ARRAY_JOB_ID}_${TASK_ID}.sh
 cat > "$SWEEP_SH" << 'SWEEP_SCRIPT'
 #!/bin/bash
 set -euo pipefail
@@ -44,6 +45,7 @@ INPUT_JSONL=$1
 OUTPUT_DIR=$2
 CONTROL=$3
 TOTAL_SPECS=$4
+TASK_ID=$5
 
 # Set HF token from cached credentials
 if [ -f /root/.cache/huggingface/token ]; then
@@ -57,7 +59,7 @@ else
     echo "WARNING: No HF token found at /root/.cache/huggingface/token"
 fi
 
-echo "=== Container on $(hostname), SLURM_NODEID=$SLURM_NODEID ==="
+echo "=== Container on $(hostname), Task $TASK_ID ==="
 python --version
 python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA={torch.cuda.is_available()}, GPUs={torch.cuda.device_count()}')"
 echo ""
@@ -126,42 +128,45 @@ echo ""
 python -c "import cosmos_transfer2; print('cosmos_transfer2 imported OK')"
 echo ""
 
-# === Phase 1: Precompute edge + vis maps (node 0 only) ===
-PRECOMPUTE_FLAG="$OUTPUT_DIR/.precompute_done"
-if [ "$SLURM_NODEID" -eq 0 ]; then
-    echo "=== Precomputing control maps (node 0) ==="
-    mkdir -p "$OUTPUT_DIR"
-    CUDA_VISIBLE_DEVICES=0 python inputs/open_h/nonexpert-2026-01-15_16-50-48/precompute_controls.py
-    touch "$PRECOMPUTE_FLAG"
-    echo "Precompute done."
+# === Precompute edge + vis maps (once, with file lock) ===
+EDGE_MAP=inputs/open_h/nonexpert-2026-01-15_16-50-48/edge/episode_000043.mp4
+VIS_MAP=inputs/open_h/nonexpert-2026-01-15_16-50-48/vis/episode_000043.mp4
+if [ ! -f "$EDGE_MAP" ] || [ ! -f "$VIS_MAP" ]; then
+    LOCK="$OUTPUT_DIR/.precompute_lock"
+    if mkdir "$LOCK" 2>/dev/null; then
+        echo "=== Precomputing control maps (task $TASK_ID won lock) ==="
+        mkdir -p "$OUTPUT_DIR"
+        CUDA_VISIBLE_DEVICES=0 python inputs/open_h/nonexpert-2026-01-15_16-50-48/precompute_controls.py
+        echo "Precompute done."
+    else
+        echo "=== Waiting for precomputation ==="
+        while [ ! -f "$EDGE_MAP" ] || [ ! -f "$VIS_MAP" ]; do
+            sleep 2
+        done
+        echo "Control maps found."
+    fi
 else
-    echo "=== Waiting for precomputation (node $SLURM_NODEID) ==="
-    while [ ! -f "$PRECOMPUTE_FLAG" ]; do
-        sleep 2
-    done
-    echo "Precompute flag found, proceeding."
+    echo "Control maps already exist, skipping precompute."
 fi
 echo ""
 
-# === Phase 2: Parallel sweep ===
-echo "=== Running sweep (node $SLURM_NODEID) ==="
+# === Parallel sweep — 8 GPUs on this node ===
+echo "=== Running sweep (task $TASK_ID) ==="
 mkdir -p "$OUTPUT_DIR"
 
 GPUS_PER_NODE=8
 SPECS_PER_GPU=4
 
 for gpu in $(seq 0 $((GPUS_PER_NODE - 1))); do
-    GPU_GLOBAL=$((SLURM_NODEID * GPUS_PER_NODE + gpu))
+    GPU_GLOBAL=$((TASK_ID * GPUS_PER_NODE + gpu))
     START=$((GPU_GLOBAL * SPECS_PER_GPU + 1))
     END=$((START + SPECS_PER_GPU - 1))
 
-    # Check if we have specs for this GPU
     if [ "$START" -gt "$TOTAL_SPECS" ]; then
-        echo "GPU $gpu (global $GPU_GLOBAL): no specs to process, skipping."
+        echo "GPU $gpu (global $GPU_GLOBAL): no specs, skipping."
         continue
     fi
 
-    # Extract this GPU's specs
     TEMP_JSONL="/tmp/sweep_gpu${gpu}.jsonl"
     sed -n "${START},${END}p" "$INPUT_JSONL" > "$TEMP_JSONL"
     NUM_LINES=$(wc -l < "$TEMP_JSONL")
@@ -182,16 +187,16 @@ echo "All GPU processes launched, waiting..."
 wait
 echo ""
 
-echo "=== Node $SLURM_NODEID done ==="
+echo "=== Task $TASK_ID done ==="
 ls "$OUTPUT_DIR"/*.mp4 2>/dev/null | wc -l | xargs -I{} echo "Videos in output dir: {}"
 SWEEP_SCRIPT
 
 chmod +x "$SWEEP_SH"
 
-# --- Run in container (all nodes) ---
+# --- Run in container ---
 srun \
     --container-image="$CONTAINER" \
     --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,$SWEEP_SH:/tmp/cosmos_sweep.sh" \
     --container-workdir=/workspace \
     --no-container-mount-home \
-    bash /tmp/cosmos_sweep.sh "$INPUT_JSONL" "$OUTPUT_DIR" "$CONTROL" "$TOTAL_SPECS"
+    bash /tmp/cosmos_sweep.sh "$INPUT_JSONL" "$OUTPUT_DIR" "$CONTROL" "$TOTAL_SPECS" "$TASK_ID"
