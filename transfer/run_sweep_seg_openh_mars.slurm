@@ -120,7 +120,7 @@ if [ ! -f "$PT_CKPT" ]; then
     echo "  Output: $CKPT_DIR/seg_openh_converted/"
 
     python scripts/convert_distcp_to_pt.py \
-        "$TRAIN_CKPT_DIR" \
+        "$TRAIN_CKPT_DIR/model" \
         "$CKPT_DIR/seg_openh_converted/"
 
     # Use the EMA bf16 weights for inference
