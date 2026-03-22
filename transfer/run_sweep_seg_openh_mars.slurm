@@ -119,6 +119,7 @@ if [ ! -f "$PT_CKPT" ]; then
     echo "  Input:  $TRAIN_CKPT_DIR/model"
     echo "  Output: $CKPT_DIR/seg_openh_converted/"
 
+    mkdir -p "$CKPT_DIR/seg_openh_converted"
     python scripts/convert_distcp_to_pt.py \
         "$TRAIN_CKPT_DIR/model" \
         "$CKPT_DIR/seg_openh_converted/"
