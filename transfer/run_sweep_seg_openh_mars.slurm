@@ -136,17 +136,19 @@ echo ""
 echo "=== Running seg control weight sweep ==="
 mkdir -p $OUTPUT_DIR
 
-# Split JSONL into per-GPU files
+# Split JSONL into per-GPU files in the same directory as the input (preserves relative paths)
+INPUT_DIR=$(dirname "$INPUT_FILE")
 NUM_LINES=$(wc -l < "$INPUT_FILE")
 echo "  $NUM_LINES samples across 8 GPUs"
 
 for gpu in $(seq 0 7); do
     LINE=$((gpu + 1))
     if [ $LINE -le $NUM_LINES ]; then
-        sed -n "${LINE}p" "$INPUT_FILE" > "/tmp/sweep_gpu${gpu}.json"
-        echo "  GPU $gpu: $(python -c "import json; d=json.load(open('/tmp/sweep_gpu${gpu}.json')); print(d['name'], 'cw='+str(d['seg']['control_weight']))")"
+        GPU_SPEC="$INPUT_DIR/_sweep_gpu${gpu}.json"
+        sed -n "${LINE}p" "$INPUT_FILE" > "$GPU_SPEC"
+        echo "  GPU $gpu: $(python -c "import json; d=json.load(open('$GPU_SPEC')); print(d['name'], 'cw='+str(d['seg']['control_weight']))")"
         CUDA_VISIBLE_DEVICES=$gpu MASTER_PORT=$((53900 + gpu)) python examples/inference.py \
-            -i "/tmp/sweep_gpu${gpu}.json" \
+            -i "$GPU_SPEC" \
             -o "$OUTPUT_DIR" \
             --checkpoint-path "$PT_CKPT" \
             seg &
