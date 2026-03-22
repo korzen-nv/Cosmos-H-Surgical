@@ -145,10 +145,10 @@ for gpu in $(seq 0 7); do
     if [ $LINE -le $NUM_LINES ]; then
         sed -n "${LINE}p" "$INPUT_FILE" > "/tmp/sweep_gpu${gpu}.json"
         echo "  GPU $gpu: $(python -c "import json; d=json.load(open('/tmp/sweep_gpu${gpu}.json')); print(d['name'], 'cw='+str(d['seg']['control_weight']))")"
-        CUDA_VISIBLE_DEVICES=$gpu python examples/inference.py \
+        CUDA_VISIBLE_DEVICES=$gpu MASTER_PORT=$((53900 + gpu)) python examples/inference.py \
             -i "/tmp/sweep_gpu${gpu}.json" \
             -o "$OUTPUT_DIR" \
-            --checkpoint "$PT_CKPT" \
+            --checkpoint-path "$PT_CKPT" \
             seg &
     fi
 done
