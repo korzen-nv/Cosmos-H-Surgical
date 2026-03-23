@@ -1,8 +1,8 @@
-{"name": "ep006_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000006.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000006.mp4", "control_weight": 0.7}}
-{"name": "ep010_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000010.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000010.mp4", "control_weight": 0.7}}
-{"name": "ep025_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000025.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000025.mp4", "control_weight": 0.7}}
-{"name": "ep029_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000029.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000029.mp4", "control_weight": 0.7}}
-{"name": "ep043_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000043.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000043.mp4", "control_weight": 0.7}}
-{"name": "ep047_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000047.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000047.mp4", "control_weight": 0.7}}
-{"name": "ep060_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000060.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000060.mp4", "control_weight": 0.7}}
-{"name": "ep065_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000065.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000065.mp4", "control_weight": 0.7}}
+{"name": "ep006_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000006.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000006.mp4", "control_weight": 1.0}}
+{"name": "ep010_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000010.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000010.mp4", "control_weight": 1.0}}
+{"name": "ep025_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000025.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000025.mp4", "control_weight": 1.0}}
+{"name": "ep029_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000029.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000029.mp4", "control_weight": 1.0}}
+{"name": "ep043_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000043.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000043.mp4", "control_weight": 1.0}}
+{"name": "ep047_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000047.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000047.mp4", "control_weight": 1.0}}
+{"name": "ep060_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000060.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000060.mp4", "control_weight": 1.0}}
+{"name": "ep065_openh_seg", "prompt_path": "prompt.txt", "video_path": "color/episode_000065.mp4", "guidance": 3, "seg": {"control_path": "segmentation/episode_000065.mp4", "control_weight": 1.0}}
