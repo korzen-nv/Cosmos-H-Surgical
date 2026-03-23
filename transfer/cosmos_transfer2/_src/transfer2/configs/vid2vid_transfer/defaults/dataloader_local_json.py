@@ -43,14 +43,14 @@ from cosmos_transfer2._src.transfer2.datasets.local_datasets.singleview_dataset_
 import os
 
 _LUSTRE_USER = os.environ.get("LUSTRE_USER", "/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk")
-_ATLAS120K_OPENH = f"{_LUSTRE_USER}/cosmos/datasets/atlas120k_openh"
+_OPENH_UNIFIED = f"{_LUSTRE_USER}/cosmos/datasets/openh_unified"
 
-DATA_ROOT_1 = f"{_ATLAS120K_OPENH}/train"
-DATA_LIST_1 = f"{_ATLAS120K_OPENH}/train.json"
+DATA_ROOT_1 = f"{_OPENH_UNIFIED}/train"
+DATA_LIST_1 = f"{_OPENH_UNIFIED}/train.json"
 
 DATASET_DIR = DATA_ROOT_1
 JSON_PATH = DATA_LIST_1
-ENLARGED_FACTOR = "10.0"
+ENLARGED_FACTOR = "5.0"
 
 
 def register_dataloader_local_json() -> None:
