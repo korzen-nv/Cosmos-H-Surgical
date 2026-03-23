@@ -14,8 +14,9 @@ LUSTRE_USER=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk
 WORK_DIR=$LUSTRE_USER/cosmos/Cosmos-H-Surgical/transfer
 PIP_CACHE=$LUSTRE_USER/.pip_cache
 HF_CACHE=$LUSTRE_USER/.cache/huggingface
-DATASET_DIR=$LUSTRE_USER/cosmos/datasets/atlas120k_openh/train
-JSON_PATH=$LUSTRE_USER/cosmos/datasets/atlas120k_openh/train.json
+DATASET_ROOT=$LUSTRE_USER/cosmos/datasets/openh_unified
+DATASET_DIR=$DATASET_ROOT/train
+JSON_PATH=$DATASET_ROOT/train.json
 CKPT_DIR=$LUSTRE_USER/cosmos/checkpoints
 CONTAINER=$LUSTRE_USER/cosmos/containers/cosmos-h-surgical-transfer.sqsh
 BASE_CONTAINER=/lustre/fsw/portfolios/healthcareeng/projects/healthcareeng_holoscan/user_data/lzbinden/containers/im4-onelogger.sqsh
@@ -216,7 +217,7 @@ RESUME_STATE=${7:-False}
 # --- Run in container ---
 srun \
     --container-image="$CONTAINER" \
-    --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,$DATASET_DIR:$DATASET_DIR,$JSON_PATH:$JSON_PATH,$CKPT_DIR:$CKPT_DIR,/tmp/cosmos_train.sh:/tmp/cosmos_train.sh" \
+    --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,$DATASET_ROOT:$DATASET_ROOT,$CKPT_DIR:$CKPT_DIR,/tmp/cosmos_train.sh:/tmp/cosmos_train.sh" \
     --container-workdir=/workspace \
     --no-container-mount-home \
     bash /tmp/cosmos_train.sh "$DATASET_DIR" "$JSON_PATH" "$CKPT_DIR" "$MAX_ITER" "$LR" "$SAVE_ITER" "$RESUME_STATE"
