@@ -95,7 +95,56 @@ just docker-cu130           # build and run CUDA 13.0 container
 
 For inference performance benchmarks and optimization ideas, see [`PERFORMANCE.md`](PERFORMANCE.md).
 
+For dataset details, class mappings, and preparation scripts, see [`DATASETS.md`](DATASETS.md) and [`MAPPINGS.md`](MAPPINGS.md).
+
 For cluster access and Slurm usage, see [`../SLURM.md`](../SLURM.md).
+
+## Segmentation ControlNet Training
+
+### Open-H Unified Format
+The seg controlnet is trained on 4 cholecystectomy datasets mapped to a unified 8-class Open-H
+palette (Background, Abdominal Wall, Liver, Gallbladder, Fat, Connective Tissue, Instruments,
+Other Anatomy). See [`MAPPINGS.md`](MAPPINGS.md) for per-dataset class mappings.
+
+**Datasets:** Atlas120k (95 clips), CholecSeg8k (101 clips), Endoscapes (7 clips), HeiSurf (8 clips) — 211 total, ~34k frames. See [`DATASETS.md`](DATASETS.md).
+
+### Data Preparation
+```bash
+# Prepare all 4 datasets for cluster training (unified Open-H format)
+sbatch prepare_unified_data_mars.slurm
+
+# Or Atlas120k only (local)
+python scripts/prepare_atlas120k_openh.py --data-root ../data/atlas120k --output-root data/atlas120k_openh
+```
+
+### Training on MARS Cluster
+```bash
+SSH_HOST=pkorzeniowsk@pkorzeniowsk-oci-iad-cs.park.nvidia.com
+COSMOS_ROOT=/lustre/fsw/portfolios/healthcareeng/users/pkorzeniowsk/cosmos/Cosmos-H-Surgical/transfer
+
+# Submit training (1 DGX node, 8x A100, 4h, saves every 100 iters)
+ssh $SSH_HOST "cd $COSMOS_ROOT && sbatch run_train_seg_mars.slurm 5000 0.0000432 100"
+
+# Chain continuation job (resumes optimizer state)
+ssh $SSH_HOST "cd $COSMOS_ROOT && \
+  JOB1=\$(sbatch --parsable run_train_seg_mars.slurm 5000 0.0000432 100) && \
+  sbatch --dependency=afterany:\$JOB1 run_train_seg_mars.slurm 10000 0.0000432 100 . . . True"
+```
+
+**Args:** `run_train_seg_mars.slurm [MAX_ITER] [LR] [SAVE_ITER] [. . . RESUME_STATE]`
+- Default LR: 0.0000432 (2^-14.5)
+- RESUME_STATE: `False` for fresh start (loads HF checkpoint), `True` for continuation
+- Training speed: ~57 s/step on 8x A100, ~240 iters per 4h job
+- Checkpoints: DCP format on lustre, convert to `.pt` for inference via `scripts/convert_distcp_to_pt.py`
+
+### Inference with Fine-tuned Checkpoint
+```bash
+# Run sweep with fine-tuned seg model (converts DCP→.pt, then 8 parallel inferences)
+ssh $SSH_HOST "cd $COSMOS_ROOT && sbatch run_sweep_seg_openh_mars.slurm iter_000000600"
+
+# Local inference with custom checkpoint
+python examples/inference.py -i spec.json -o outputs/ --checkpoint-path /path/to/model_ema_bf16.pt seg
+```
 
 ## MARS Cluster Inference
 
@@ -155,6 +204,8 @@ This is ~2× faster than `torchrun --nproc_per_node=8` running videos sequential
 ```
 
 ## Datasets
+
+For full dataset documentation (formats, class encodings, cluster paths), see [`DATASETS.md`](DATASETS.md).
 
 ### Accessing datasets
 Always use the `/data` symlink (project root `data/` → `/home/pkorzeniowsk/Datasets/`) when referencing dataset paths in scripts and spec files. This keeps paths within the sandbox write allowlist and avoids permission prompts.
