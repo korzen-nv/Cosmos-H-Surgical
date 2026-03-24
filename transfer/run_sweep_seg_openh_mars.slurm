@@ -132,34 +132,36 @@ else
 fi
 echo ""
 
-# === Step 2: Run sweep — 8 samples on 8 GPUs ===
-echo "=== Running seg control weight sweep ==="
+# === Step 2: Run sweep — batch specs across 8 GPUs ===
+echo "=== Running seg sweep ==="
 mkdir -p $OUTPUT_DIR
 
-# Split JSONL into per-GPU files in the same directory as the input (preserves relative paths)
 INPUT_DIR=$(dirname "$INPUT_FILE")
 NUM_LINES=$(wc -l < "$INPUT_FILE")
-echo "  $NUM_LINES samples across 8 GPUs"
+NUM_GPUS=8
+NUM_BATCHES=$(( (NUM_LINES + NUM_GPUS - 1) / NUM_GPUS ))
+echo "  $NUM_LINES samples, $NUM_BATCHES batch(es) of $NUM_GPUS GPUs"
 
-for gpu in $(seq 0 7); do
-    LINE=$((gpu + 1))
-    if [ $LINE -le $NUM_LINES ]; then
-        GPU_SPEC="$INPUT_DIR/_sweep_gpu${gpu}.json"
-        sed -n "${LINE}p" "$INPUT_FILE" > "$GPU_SPEC"
-        echo "  GPU $gpu: $(python -c "import json; d=json.load(open('$GPU_SPEC')); print(d['name'], 'cw='+str(d['seg']['control_weight']))")"
-        CUDA_VISIBLE_DEVICES=$gpu MASTER_PORT=$((53900 + gpu)) python examples/inference.py \
-            -i "$GPU_SPEC" \
-            -o "$OUTPUT_DIR" \
-            --checkpoint-path "$PT_CKPT" \
-            seg &
-    fi
+for batch in $(seq 0 $((NUM_BATCHES - 1))); do
+    echo ""
+    echo "--- Batch $((batch + 1))/$NUM_BATCHES ---"
+    for gpu in $(seq 0 $((NUM_GPUS - 1))); do
+        LINE=$(( batch * NUM_GPUS + gpu + 1 ))
+        if [ $LINE -le $NUM_LINES ]; then
+            GPU_SPEC="$INPUT_DIR/_sweep_gpu${gpu}.json"
+            sed -n "${LINE}p" "$INPUT_FILE" > "$GPU_SPEC"
+            echo "  GPU $gpu: $(python -c "import json; d=json.load(open('$GPU_SPEC')); print(d['name'])")"
+            CUDA_VISIBLE_DEVICES=$gpu MASTER_PORT=$((53900 + gpu)) python examples/inference.py \
+                -i "$GPU_SPEC" \
+                -o "$OUTPUT_DIR" \
+                --checkpoint-path "$PT_CKPT" \
+                seg &
+        fi
+    done
+    wait
 done
 
 echo ""
-echo "Waiting for all GPUs..."
-wait
-echo ""
-
 echo "=== Sweep complete ==="
 ls -la $OUTPUT_DIR/*.mp4 2>/dev/null | head -20
 echo "Total outputs: $(ls $OUTPUT_DIR/*.mp4 2>/dev/null | wc -l)"
