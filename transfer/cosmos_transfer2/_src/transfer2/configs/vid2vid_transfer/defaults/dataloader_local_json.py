@@ -46,7 +46,7 @@ _LUSTRE_USER = os.environ.get("LUSTRE_USER", "/lustre/fsw/portfolios/healthcaree
 _OPENH_UNIFIED = f"{_LUSTRE_USER}/cosmos/datasets/openh_unified"
 
 DATA_ROOT_1 = f"{_OPENH_UNIFIED}/train"
-DATA_LIST_1 = f"{_OPENH_UNIFIED}/train.json"
+DATA_LIST_1 = f"{_OPENH_UNIFIED}/train_atlas_cs8k.json"
 
 DATASET_DIR = DATA_ROOT_1
 JSON_PATH = DATA_LIST_1
