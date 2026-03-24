@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=cosmos_seg_openh
+#SBATCH --job-name=seg_embedder_only
 #SBATCH --output=logs/%x_%j.log
 #SBATCH --time=04:00:00
 #SBATCH --nodes=1
@@ -26,15 +26,17 @@ if [ ! -f "$CONTAINER" ]; then
 fi
 
 # --- Training hyperparameters ---
+# Embedder-only needs higher LR (fewer params) and more iters (slower learning signal)
 MAX_ITER=${1:-5000}
-LR=${2:-0.0000432}         # 2^(-14.5), same as original seg fine-tuning
-SAVE_ITER=${3:-500}
+LR=${2:-0.000173}              # 2^(-12.5), ~4x higher than full fine-tuning
+SAVE_ITER=${3:-200}
 
 cd $WORK_DIR
 mkdir -p logs $CKPT_DIR
 
-echo "=== Training Job $SLURM_JOB_ID on $(hostname) ==="
-echo "Dataset:  $DATASET_DIR"
+echo "=== Embedder-Only Training Job $SLURM_JOB_ID on $(hostname) ==="
+echo "Mode:     embedder_only (control_blocks FROZEN)"
+echo "Dataset:  $DATASET_DIR (atlas+cs8k only)"
 echo "Max iter: $MAX_ITER"
 echo "LR:       $LR"
 echo "Save:     every $SAVE_ITER iters"
@@ -46,7 +48,7 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 echo ""
 
 # --- Create training script ---
-cat > /tmp/cosmos_train.sh << 'TRAIN_SCRIPT'
+cat > /tmp/cosmos_train_embedder.sh << 'TRAIN_SCRIPT'
 #!/bin/bash
 set -euo pipefail
 
@@ -71,7 +73,7 @@ python --version
 python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA={torch.cuda.is_available()}, GPUs={torch.cuda.device_count()}')"
 echo ""
 
-# Install packages (same as inference slurm)
+# Install packages
 echo "=== Installing dependencies ==="
 pip install hatchling hatch-vcs uv 2>&1 | tail -1
 pip install --no-deps packages/* 2>&1 | tail -1
@@ -148,15 +150,27 @@ else
 fi
 echo ""
 
+# Count trainable params to verify embedder-only mode
+python -c "
+import torch
+ckpt = torch.load('$SEG_CKPT', map_location='cpu', weights_only=True)
+embedder_params = sum(v.numel() for k, v in ckpt.items() if 'control_embedder' in k)
+control_params = sum(v.numel() for k, v in ckpt.items() if 'control_block' in k)
+total = sum(v.numel() for v in ckpt.values())
+print(f'Checkpoint params: {total:,} total, {control_params:,} control_blocks, {embedder_params:,} control_embedder')
+print(f'Embedder-only trains {embedder_params:,} params ({100*embedder_params/total:.2f}% of model)')
+"
+echo ""
+
 # Set distributed training env
 export MASTER_ADDR=$(hostname)
 export MASTER_PORT=12341
 export NCCL_DEBUG=WARN
 
-# Save checkpoints to lustre (not ephemeral /tmp)
+# Save checkpoints to lustre (separate output dir from full fine-tuning)
 export IMAGINAIRE_OUTPUT_ROOT=$CKPT_DIR/output
 
-echo "=== Starting training ==="
+echo "=== Starting embedder-only training ==="
 echo "  Nodes:    $SLURM_NNODES"
 echo "  GPUs:     8"
 echo "  Dataset:  $DATASET_DIR"
@@ -164,6 +178,7 @@ echo "  Checkpoint: $SEG_CKPT"
 echo "  Output:   $IMAGINAIRE_OUTPUT_ROOT"
 echo "  Max iter: $MAX_ITER"
 echo "  LR:       $LR"
+echo "  Mode:     embedder_only (control_blocks FROZEN)"
 echo ""
 
 # RESUME_STATE: set to True for continuation jobs, False for first run
@@ -181,8 +196,9 @@ torchrun \
     experiment=vid2vid_2B_control_720p_t24_control_layer4_cr1pt1_embedding_rectified_flow \
     data_train=surgical_singleview_train_data_seg \
     job.group=cosmos_h_surgical_seg_openh \
-    job.name=seg_openh_atlas120k_finetune \
+    job.name=seg_openh_embedder_only \
     model.config.hint_keys=seg \
+    model.config.embedder_only=True \
     model.config.fsdp_shard_size=8 \
     model.config.base_load_from.load_path=None \
     model.config.base_load_from.credentials=None \
@@ -210,14 +226,14 @@ echo "Checkpoints:"
 find $IMAGINAIRE_OUTPUT_ROOT -name "iter_*" -type d 2>/dev/null || echo "No checkpoints found"
 TRAIN_SCRIPT
 
-chmod +x /tmp/cosmos_train.sh
+chmod +x /tmp/cosmos_train_embedder.sh
 
 RESUME_STATE=${7:-False}
 
 # --- Run in container ---
 srun \
     --container-image="$CONTAINER" \
-    --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,$DATASET_ROOT:$DATASET_ROOT,$CKPT_DIR:$CKPT_DIR,/tmp/cosmos_train.sh:/tmp/cosmos_train.sh" \
+    --container-mounts="$WORK_DIR:/workspace,$HF_CACHE:/root/.cache/huggingface,$PIP_CACHE:/root/.cache/pip,$DATASET_ROOT:$DATASET_ROOT,$CKPT_DIR:$CKPT_DIR,/tmp/cosmos_train_embedder.sh:/tmp/cosmos_train_embedder.sh" \
     --container-workdir=/workspace \
     --no-container-mount-home \
-    bash /tmp/cosmos_train.sh "$DATASET_DIR" "$JSON_PATH" "$CKPT_DIR" "$MAX_ITER" "$LR" "$SAVE_ITER" "$RESUME_STATE"
+    bash /tmp/cosmos_train_embedder.sh "$DATASET_DIR" "$JSON_PATH" "$CKPT_DIR" "$MAX_ITER" "$LR" "$SAVE_ITER" "$RESUME_STATE"
