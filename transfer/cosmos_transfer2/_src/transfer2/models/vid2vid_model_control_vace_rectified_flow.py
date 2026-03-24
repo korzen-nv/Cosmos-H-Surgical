@@ -61,6 +61,7 @@ class ControlVideo2WorldRectifiedFlowConfig(Video2WorldModelRectifiedFlowConfig)
     )
     hint_keys: str = "_".join([key.replace("control_input_", "") for key in CTRL_HINT_KEYS.keys()])
     use_reference_image: bool = False  # Whether to use reference image as control input
+    embedder_only: bool = False  # If True, only train control_embedder (freeze control_blocks)
 
 
 class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
@@ -572,17 +573,20 @@ class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
             param.requires_grad = False
 
         # 2. unfreeze control-specific parameters: the blocks and patch embedding
-        if self.net.num_control_branches > 1:
-            for nc in range(self.net.num_control_branches):
-                for param in getattr(self.net, f"control_blocks_{nc}").parameters():
-                    param.requires_grad = True
-            if hasattr(self.net, "after_proj"):
-                for param in self.net.after_proj.parameters():
-                    param.requires_grad = True
+        if self.config.embedder_only:
+            log.info("embedder_only=True: only unfreezing control_embedder (control_blocks stay frozen)")
         else:
-            for block in self.net.control_blocks:
-                for param in block.parameters():
-                    param.requires_grad = True
+            if self.net.num_control_branches > 1:
+                for nc in range(self.net.num_control_branches):
+                    for param in getattr(self.net, f"control_blocks_{nc}").parameters():
+                        param.requires_grad = True
+                if hasattr(self.net, "after_proj"):
+                    for param in self.net.after_proj.parameters():
+                        param.requires_grad = True
+            else:
+                for block in self.net.control_blocks:
+                    for param in block.parameters():
+                        param.requires_grad = True
 
         for param in self.net.control_embedder.parameters():
             param.requires_grad = True
