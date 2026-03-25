@@ -16,9 +16,14 @@ PIP_CACHE=$LUSTRE_USER/.pip_cache
 HF_CACHE=$LUSTRE_USER/.cache/huggingface
 CKPT_DIR=$LUSTRE_USER/cosmos/checkpoints
 
-# Which training checkpoint to use (default: iter_600)
-CKPT_ITER=${1:-iter_000000600}
-TRAIN_CKPT_DIR=$CKPT_DIR/output/cosmos_transfer2/cosmos_h_surgical_seg_openh/seg_openh_atlas120k_finetune/checkpoints/$CKPT_ITER
+# Which training checkpoint to use
+# Arg 1: either an iter name (e.g. iter_000000600) or a full path to the DCP checkpoint dir
+CKPT_ARG=${1:-iter_000000600}
+if [[ "$CKPT_ARG" == /* ]]; then
+    TRAIN_CKPT_DIR=$CKPT_ARG
+else
+    TRAIN_CKPT_DIR=$CKPT_DIR/output/cosmos_transfer2/cosmos_h_surgical_seg_openh/seg_openh_atlas120k_finetune/checkpoints/$CKPT_ARG
+fi
 
 # Sweep input and output
 INPUT_FILE=${2:-inputs/open_h/nonexpert-2026-01-15_16-50-48/ep043_seg_openh_cw_sweep.jsonl}
@@ -113,19 +118,18 @@ echo ""
 python -c "import cosmos_transfer2; print('cosmos_transfer2 imported OK')"
 
 # === Step 1: Convert DCP checkpoint to consolidated .pt ===
-PT_CKPT="$CKPT_DIR/seg_openh_model_ema_bf16.pt"
+# Use checkpoint-specific .pt name to avoid conflicts between different training runs
+CKPT_BASENAME=$(basename "$TRAIN_CKPT_DIR")
+PT_CKPT="$TRAIN_CKPT_DIR/model_ema_bf16.pt"
 if [ ! -f "$PT_CKPT" ]; then
     echo "=== Converting DCP checkpoint to .pt ==="
     echo "  Input:  $TRAIN_CKPT_DIR/model"
-    echo "  Output: $CKPT_DIR/seg_openh_converted/"
+    echo "  Output: $TRAIN_CKPT_DIR/"
 
-    mkdir -p "$CKPT_DIR/seg_openh_converted"
     python scripts/convert_distcp_to_pt.py \
         "$TRAIN_CKPT_DIR/model" \
-        "$CKPT_DIR/seg_openh_converted/"
+        "$TRAIN_CKPT_DIR/"
 
-    # Use the EMA bf16 weights for inference
-    mv "$CKPT_DIR/seg_openh_converted/model_ema_bf16.pt" "$PT_CKPT"
     echo "Converted checkpoint: $(ls -lh $PT_CKPT)"
 else
     echo "Converted checkpoint found: $(ls -lh $PT_CKPT)"
