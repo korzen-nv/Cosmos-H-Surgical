@@ -67,6 +67,30 @@ class ControlVideo2WorldRectifiedFlowConfig(Video2WorldModelRectifiedFlowConfig)
     control_lora_alpha: int = 16
 
 
+class _LoRALinear(nn.Module):
+    """Drop-in replacement for nn.Linear that adds a low-rank adaptation path.
+
+    The original linear weights are frozen; only lora_A and lora_B are trainable.
+    output = original(x) + lora_B(lora_A(x)) * scaling
+    """
+
+    def __init__(self, original: nn.Linear, rank: int, scaling: float):
+        super().__init__()
+        self.original = original
+        self.lora_A = nn.Linear(original.in_features, rank, bias=False)
+        self.lora_B = nn.Linear(rank, original.out_features, bias=False)
+        self.scaling = scaling
+        # Standard LoRA init: A ~ N(0, σ), B = 0 → initial LoRA contribution is zero
+        nn.init.kaiming_uniform_(self.lora_A.weight, a=5**0.5)
+        nn.init.zeros_(self.lora_B.weight)
+        # Freeze original weights
+        for p in original.parameters():
+            p.requires_grad = False
+
+    def forward(self, x):
+        return self.original(x) + self.lora_B(self.lora_A(x)) * self.scaling
+
+
 class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
     """
     ImaginaireModel instance of the VACE-styled controlnet for training.
@@ -655,35 +679,42 @@ class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
             self._inject_control_lora()
 
     def _inject_control_lora(self):
-        """Inject LoRA adapters into control_blocks only (not the base model)."""
-        from peft import LoraConfig, inject_adapter_in_model
+        """Inject LoRA adapters into control_blocks only (not the base model).
 
+        Uses manual LoRA implementation (no peft dependency) to avoid compatibility
+        issues with CheckpointWrapper and FSDP-wrapped modules.
+        """
         rank = self.config.control_lora_rank
         alpha = self.config.control_lora_alpha
-        target_modules = ["q_proj", "k_proj", "v_proj", "output_proj", "layer1", "layer2"]
-
-        lora_config = LoraConfig(
-            r=rank,
-            lora_alpha=alpha,
-            target_modules=target_modules,
-            init_lora_weights=True,
-        )
+        scaling = alpha / rank
+        target_names = {"q_proj", "k_proj", "v_proj", "output_proj", "layer1", "layer2"}
 
         def _get_inner_block(block):
-            """Unwrap CheckpointWrapper if present."""
             if hasattr(block, "_checkpoint_wrapped_module"):
                 return block._checkpoint_wrapped_module
             return block
 
-        # Inject LoRA into each control block's inner module
+        def _replace_with_lora(module, prefix=""):
+            """Recursively replace matching nn.Linear with LoRA-wrapped version."""
+            count = 0
+            for name, child in list(module.named_children()):
+                if isinstance(child, nn.Linear) and name in target_names:
+                    lora = _LoRALinear(child, rank, scaling)
+                    setattr(module, name, lora)
+                    count += 1
+                else:
+                    count += _replace_with_lora(child, f"{prefix}{name}.")
+            return count
+
+        total_replaced = 0
         if self.net.num_control_branches > 1:
             for nc in range(self.net.num_control_branches):
                 blocks = getattr(self.net, f"control_blocks_{nc}")
-                for i, block in enumerate(blocks):
-                    inject_adapter_in_model(_get_inner_block(block), lora_config, adapter_name=f"control_lora_{nc}_{i}")
+                for block in blocks:
+                    total_replaced += _replace_with_lora(_get_inner_block(block))
         else:
-            for i, block in enumerate(self.net.control_blocks):
-                inject_adapter_in_model(_get_inner_block(block), lora_config, adapter_name=f"control_lora_{i}")
+            for block in self.net.control_blocks:
+                total_replaced += _replace_with_lora(_get_inner_block(block))
 
         # Count trainable params
         lora_params = 0
