@@ -706,15 +706,25 @@ class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
                     count += _replace_with_lora(child, f"{prefix}{name}.")
             return count
 
-        total_replaced = 0
-        if self.net.num_control_branches > 1:
-            for nc in range(self.net.num_control_branches):
-                blocks = getattr(self.net, f"control_blocks_{nc}")
-                for block in blocks:
-                    total_replaced += _replace_with_lora(_get_inner_block(block))
-        else:
-            for block in self.net.control_blocks:
-                total_replaced += _replace_with_lora(_get_inner_block(block))
+        def _inject_lora_into_net(net):
+            """Inject LoRA into all control_blocks of a network."""
+            count = 0
+            if net.num_control_branches > 1:
+                for nc in range(net.num_control_branches):
+                    blocks = getattr(net, f"control_blocks_{nc}")
+                    for block in blocks:
+                        count += _replace_with_lora(_get_inner_block(block))
+            else:
+                for block in net.control_blocks:
+                    count += _replace_with_lora(_get_inner_block(block))
+            return count
+
+        total_replaced = _inject_lora_into_net(self.net)
+
+        # Also inject into EMA model so param shapes match during EMA copy
+        if hasattr(self, "net_ema") and self.net_ema is not None:
+            _inject_lora_into_net(self.net_ema)
+            log.info("LoRA also injected into net_ema")
 
         # Count trainable params
         lora_params = 0
