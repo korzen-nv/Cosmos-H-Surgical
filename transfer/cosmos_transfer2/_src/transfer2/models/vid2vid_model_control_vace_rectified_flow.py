@@ -62,6 +62,9 @@ class ControlVideo2WorldRectifiedFlowConfig(Video2WorldModelRectifiedFlowConfig)
     hint_keys: str = "_".join([key.replace("control_input_", "") for key in CTRL_HINT_KEYS.keys()])
     use_reference_image: bool = False  # Whether to use reference image as control input
     embedder_only: bool = False  # If True, only train control_embedder (freeze control_blocks)
+    control_lora: bool = False  # If True, apply LoRA to control_blocks (freeze blocks, train LoRA + embedder)
+    control_lora_rank: int = 16
+    control_lora_alpha: int = 16
 
 
 class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
@@ -573,8 +576,11 @@ class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
             param.requires_grad = False
 
         # 2. unfreeze control-specific parameters: the blocks and patch embedding
-        if self.config.embedder_only:
-            log.info("embedder_only=True: only unfreezing control_embedder (control_blocks stay frozen)")
+        if self.config.embedder_only or self.config.control_lora:
+            log.info(
+                f"{'embedder_only' if self.config.embedder_only else 'control_lora'}=True: "
+                "only unfreezing control_embedder (control_blocks stay frozen)"
+            )
         else:
             if self.net.num_control_branches > 1:
                 for nc in range(self.net.num_control_branches):
@@ -645,6 +651,52 @@ class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
         self.freeze_base_model()
         self.load_base_model()
         self.copy_weights_to_control_branch()
+        if self.config.control_lora:
+            self._inject_control_lora()
+
+    def _inject_control_lora(self):
+        """Inject LoRA adapters into control_blocks only (not the base model)."""
+        from peft import LoraConfig, inject_adapter_in_model
+
+        rank = self.config.control_lora_rank
+        alpha = self.config.control_lora_alpha
+        target_modules = ["q_proj", "k_proj", "v_proj", "output_proj", "layer1", "layer2"]
+
+        lora_config = LoraConfig(
+            r=rank,
+            lora_alpha=alpha,
+            target_modules=target_modules,
+            init_lora_weights=True,
+        )
+
+        # Inject LoRA into each control block individually
+        if self.net.num_control_branches > 1:
+            for nc in range(self.net.num_control_branches):
+                blocks = getattr(self.net, f"control_blocks_{nc}")
+                for i, block in enumerate(blocks):
+                    inject_adapter_in_model(block, lora_config, adapter_name=f"control_lora_{nc}_{i}")
+        else:
+            for i, block in enumerate(self.net.control_blocks):
+                inject_adapter_in_model(block, lora_config, adapter_name=f"control_lora_{i}")
+
+        # Count trainable params
+        lora_params = 0
+        embedder_params = 0
+        total_params = 0
+        for name, param in self.net.named_parameters():
+            total_params += param.numel()
+            if param.requires_grad:
+                if "lora_" in name:
+                    lora_params += param.numel()
+                elif "control_embedder" in name:
+                    embedder_params += param.numel()
+
+        log.info(
+            f"ControlNet LoRA injected: rank={rank}, alpha={alpha}, "
+            f"LoRA params={lora_params:,}, embedder params={embedder_params:,}, "
+            f"total trainable={lora_params + embedder_params:,} / {total_params:,} "
+            f"({100 * (lora_params + embedder_params) / total_params:.3f}%)"
+        )
 
     def load_multi_branch_checkpoints(self, checkpoint_paths: list[str]):
         """
