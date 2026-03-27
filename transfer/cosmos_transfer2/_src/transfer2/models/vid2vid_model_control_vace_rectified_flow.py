@@ -669,15 +669,21 @@ class ControlVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
             init_lora_weights=True,
         )
 
-        # Inject LoRA into each control block individually
+        def _get_inner_block(block):
+            """Unwrap CheckpointWrapper if present."""
+            if hasattr(block, "_checkpoint_wrapped_module"):
+                return block._checkpoint_wrapped_module
+            return block
+
+        # Inject LoRA into each control block's inner module
         if self.net.num_control_branches > 1:
             for nc in range(self.net.num_control_branches):
                 blocks = getattr(self.net, f"control_blocks_{nc}")
                 for i, block in enumerate(blocks):
-                    inject_adapter_in_model(block, lora_config, adapter_name=f"control_lora_{nc}_{i}")
+                    inject_adapter_in_model(_get_inner_block(block), lora_config, adapter_name=f"control_lora_{nc}_{i}")
         else:
             for i, block in enumerate(self.net.control_blocks):
-                inject_adapter_in_model(block, lora_config, adapter_name=f"control_lora_{i}")
+                inject_adapter_in_model(_get_inner_block(block), lora_config, adapter_name=f"control_lora_{i}")
 
         # Count trainable params
         lora_params = 0
